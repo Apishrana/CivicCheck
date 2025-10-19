@@ -1,37 +1,36 @@
-import { type User, type InsertUser } from "@shared/schema";
+import { type CredibilityCheck, type InsertCredibilityCheck } from "@shared/schema";
 import { randomUUID } from "crypto";
 
-// modify the interface with any CRUD methods
-// you might need
-
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  createCredibilityCheck(check: InsertCredibilityCheck): Promise<CredibilityCheck>;
+  getRecentCredibilityChecks(limit: number): Promise<CredibilityCheck[]>;
 }
 
 export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+  private credibilityChecks: Map<string, CredibilityCheck>;
 
   constructor() {
-    this.users = new Map();
+    this.credibilityChecks = new Map();
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
+  async createCredibilityCheck(insertCheck: InsertCredibilityCheck): Promise<CredibilityCheck> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+    const check: CredibilityCheck = {
+      ...insertCheck,
+      sources: insertCheck.sources || [],
+      confidence: insertCheck.confidence || null,
+      id,
+      createdAt: new Date(),
+    };
+    this.credibilityChecks.set(id, check);
+    return check;
+  }
+
+  async getRecentCredibilityChecks(limit: number): Promise<CredibilityCheck[]> {
+    const checks = Array.from(this.credibilityChecks.values());
+    return checks
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
   }
 }
 
