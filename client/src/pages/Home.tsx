@@ -1,22 +1,22 @@
 import { useState, useEffect } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Header } from "@/components/Header";
 import { CredibilityForm } from "@/components/CredibilityForm";
 import { ResultsCard, type CredibilityResult } from "@/components/ResultsCard";
 import { RecentChecks } from "@/components/RecentChecks";
+import { useToast } from "@/hooks/use-toast";
 
 const STORAGE_KEY = "civic-check-recent";
 
 export default function Home() {
-  const [isLoading, setIsLoading] = useState(false);
   const [currentResult, setCurrentResult] = useState<CredibilityResult | null>(null);
-  const [recentChecks, setRecentChecks] = useState<CredibilityResult[]>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        setRecentChecks(parsed);
         if (parsed.length > 0) {
           setCurrentResult(parsed[0]);
         }
@@ -26,50 +26,76 @@ export default function Home() {
     }
   }, []);
 
-  const saveCheck = (result: CredibilityResult) => {
-    const updated = [result, ...recentChecks.filter(c => c.timestamp !== result.timestamp)].slice(0, 10);
-    setRecentChecks(updated);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  };
+  const checkCredibilityMutation = useMutation({
+    mutationFn: async (text: string) => {
+      const res = await fetch("/api/credibility-check", {
+        method: "POST",
+        body: JSON.stringify({ text }),
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText || "Failed to analyze credibility");
+      }
+
+      return await res.json();
+    },
+    onSuccess: (data) => {
+      const result: CredibilityResult = {
+        verdict: data.verdict,
+        reasoning: data.reasoning,
+        sources: data.sources,
+        confidence: data.confidence || undefined,
+        timestamp: new Date(data.createdAt).getTime(),
+        text: data.text,
+      };
+
+      setCurrentResult(result);
+
+      const stored = localStorage.getItem(STORAGE_KEY);
+      let existingChecks: CredibilityResult[] = [];
+      if (stored) {
+        try {
+          existingChecks = JSON.parse(stored);
+        } catch (e) {
+          console.error("Failed to parse stored checks:", e);
+        }
+      }
+
+      const updated = [result, ...existingChecks.filter(c => c.timestamp !== result.timestamp)].slice(0, 10);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Analysis Failed",
+        description: error.message || "Failed to analyze the text. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleSubmit = async (text: string) => {
-    setIsLoading(true);
-
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const verdicts = ["Likely True", "Possibly False", "Unverified"] as const;
-    const randomVerdict = verdicts[Math.floor(Math.random() * verdicts.length)];
-
-    const reasoningMap = {
-      "Likely True": "This statement appears credible based on the language used, specific details provided, and overall consistency. The tone is factual and includes verifiable elements. However, always cross-reference with trusted sources for important decisions.",
-      "Possibly False": "This claim shows several red flags including sensationalist language, lack of specific sources, and patterns commonly associated with misinformation. The statement contains vague assertions that are difficult to verify. Proceed with caution and verify through fact-checking sources.",
-      "Unverified": "Unable to definitively confirm or deny this claim with the information provided. The statement lacks sufficient context or specific details needed for verification. More investigation through primary sources is recommended before drawing conclusions.",
-    };
-
-    const sourcesMap = {
-      "Likely True": ["Snopes.com", "FactCheck.org"],
-      "Possibly False": ["PolitiFact.org", "Snopes.com"],
-      "Unverified": ["FactCheck.org", "Reuters Fact Check"],
-    };
-
-    const result: CredibilityResult = {
-      verdict: randomVerdict,
-      reasoning: reasoningMap[randomVerdict],
-      sources: sourcesMap[randomVerdict],
-      confidence: Math.floor(Math.random() * 30) + 70,
-      timestamp: Date.now(),
-      text,
-    };
-
-    setCurrentResult(result);
-    saveCheck(result);
-    setIsLoading(false);
+    checkCredibilityMutation.mutate(text);
   };
 
   const handleSelectCheck = (check: CredibilityResult) => {
     setCurrentResult(check);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  const localRecentChecks = (() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  })();
 
   return (
     <div className="min-h-screen bg-background">
@@ -87,7 +113,10 @@ export default function Home() {
             </p>
           </section>
 
-          <CredibilityForm onSubmit={handleSubmit} isLoading={isLoading} />
+          <CredibilityForm
+            onSubmit={handleSubmit}
+            isLoading={checkCredibilityMutation.isPending}
+          />
 
           {currentResult && (
             <section className="pt-8">
@@ -95,9 +124,9 @@ export default function Home() {
             </section>
           )}
 
-          {recentChecks.length > 0 && (
+          {localRecentChecks.length > 0 && (
             <section className="pt-12">
-              <RecentChecks checks={recentChecks} onSelectCheck={handleSelectCheck} />
+              <RecentChecks checks={localRecentChecks} onSelectCheck={handleSelectCheck} />
             </section>
           )}
         </div>
