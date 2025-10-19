@@ -1,5 +1,5 @@
 import { ThemeToggle } from "./ThemeToggle";
-import logoImage from "@assets/image_1760897033699.png";
+import logoImage from "@assets/generated_images/CivicCheck_shield_logo_icon_only_9d6167d2.png";
 
 export function Header() {
   return (
@@ -9,7 +9,7 @@ export function Header() {
           <img 
             src={logoImage} 
             alt="CivicCheck Logo" 
-            className="h-10 w-auto"
+            className="h-9 w-9"
             data-testid="img-logo"
           />
           <h1 className="text-xl font-semibold" data-testid="text-app-title">
