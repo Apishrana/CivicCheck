@@ -12,6 +12,9 @@ export function Header() {
             className="h-10 w-auto"
             data-testid="img-logo"
           />
+          <h1 className="text-xl font-semibold" data-testid="text-app-title">
+            CivicCheck
+          </h1>
         </div>
         <ThemeToggle />
       </div>
