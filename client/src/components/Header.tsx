@@ -1,5 +1,5 @@
 import { ThemeToggle } from "./ThemeToggle";
-import logoImage from "@assets/generated_images/CivicCheck_shield_logo_icon_only_9d6167d2.png";
+import logoImage from "@assets/image_1760897682336.png";
 
 export function Header() {
   return (
